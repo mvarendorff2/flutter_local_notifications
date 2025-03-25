@@ -20,6 +20,8 @@ import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
@@ -39,6 +41,7 @@ import android.util.Log;
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.AlarmManagerCompat;
 import androidx.core.app.NotificationCompat;
@@ -166,12 +169,12 @@ public class FlutterLocalNotificationsPlugin
       "requestNotificationsPermission";
   private static final String REQUEST_EXACT_ALARMS_PERMISSION_METHOD =
       "requestExactAlarmsPermission";
-
   private static final String REQUEST_FULL_SCREEN_INTENT_PERMISSION_METHOD =
       "requestFullScreenIntentPermission";
   private static final String REQUEST_NOTIFICATION_POLICY_ACCESS_METHOD =
       "requestNotificationPolicyAccess";
-  private static final String HAS_NOTIFICATION_POLICY_ACCESS_METHOD = "hasNotificationPolicyAccess";
+  private static final String HAS_NOTIFICATION_POLICY_ACCESS_METHOD=
+      "hasNotificationPolicyAccess";
   private static final String METHOD_CHANNEL = "dexterous.com/flutter/local_notifications";
   private static final String INVALID_ICON_ERROR_CODE = "invalid_icon";
   private static final String INVALID_LARGE_ICON_ERROR_CODE = "invalid_large_icon";
@@ -1285,6 +1288,15 @@ public class FlutterLocalNotificationsPlugin
   static void showNotification(Context context, NotificationDetails notificationDetails) {
     Notification notification = createNotification(context, notificationDetails);
     NotificationManagerCompat notificationManagerCompat = getNotificationManager(context);
+    NotificationChannel channel = notificationManagerCompat.getNotificationChannel(notificationDetails.channelId);
+
+    if (VERSION.SDK_INT >= VERSION_CODES.O && channel != null) {
+        if (channel.canBypassDnd() && (notificationDetails.enableVibration || notificationDetails.playSound)) {
+          // TODO extend example app for permission request
+          AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+          audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+        }
+    }
 
     if (notificationDetails.tag != null) {
       notificationManagerCompat.notify(
