@@ -1290,12 +1290,20 @@ public class FlutterLocalNotificationsPlugin
     NotificationManagerCompat notificationManagerCompat = getNotificationManager(context);
     NotificationChannel channel = notificationManagerCompat.getNotificationChannel(notificationDetails.channelId);
 
-    if (VERSION.SDK_INT >= VERSION_CODES.O && channel != null) {
-        if (channel.canBypassDnd() && (notificationDetails.enableVibration || notificationDetails.playSound)) {
-          // TODO extend example app for permission request
-          AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-          audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
-        }
+    boolean forceSound = VERSION.SDK_INT >= VERSION_CODES.O &&
+            channel != null &&
+            channel.canBypassDnd() &&
+            (notificationDetails.enableVibration || notificationDetails.playSound);
+
+    AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+    int currentRingerMode = audioManager.getRingerMode();
+    int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION);
+
+    if (forceSound) {
+      // TODO extend example app for permission request
+      audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
+      int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION);
+      audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxVolume, 0);
     }
 
     if (notificationDetails.tag != null) {
@@ -1303,6 +1311,36 @@ public class FlutterLocalNotificationsPlugin
           notificationDetails.tag, notificationDetails.id, notification);
     } else {
       notificationManagerCompat.notify(notificationDetails.id, notification);
+    }
+
+    if (forceSound) {
+      Thread resetThread = new Thread(() -> {
+        for (int i = 0; i < 10_000; i++) {
+          NotificationManager notificationManager =
+                  (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+          StatusBarNotification[] activeNotifications = notificationManager.getActiveNotifications();
+
+          if (activeNotifications.length == 0) {
+            break;
+          }
+
+          try {
+            Thread.sleep(200);
+          } catch (InterruptedException ie) {
+            // Ignore
+          }
+        }
+
+        try {
+          Thread.sleep(5000);
+        } catch (InterruptedException ie) {
+          // Ignore
+        }
+
+        audioManager.setRingerMode(currentRingerMode);
+        audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, currentVolume, 0);
+      });
+      resetThread.start();
     }
   }
 
